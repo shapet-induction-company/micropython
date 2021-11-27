@@ -55,6 +55,9 @@
 
 #if CONFIG_IDF_TARGET_ESP32C3
 #define HSPI_HOST SPI2_HOST
+#elif CONFIG_IDF_TARGET_ESP32S3
+#define HSPI_HOST SPI3_HOST
+#define FSPI_HOST SPI2_HOST
 #endif
 
 typedef struct _machine_hw_spi_default_pins_t {
@@ -193,6 +196,9 @@ STATIC void machine_hw_spi_init_internal(
     }
 
     if (self->host != HSPI_HOST
+        #ifdef FSPI_HOST
+        && self->host != FSPI_HOST
+        #endif
         #ifdef VSPI_HOST
         && self->host != VSPI_HOST
         #endif
@@ -231,7 +237,15 @@ STATIC void machine_hw_spi_init_internal(
     // Select DMA channel based on the hardware SPI host
     int dma_chan = 0;
     if (self->host == HSPI_HOST) {
+        #if CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32S3
+        dma_chan = 3;
+        #else
         dma_chan = 1;
+        #endif
+    #ifdef FSPI_HOST
+    } else if (self->host == FSPI_HOST) {
+        dma_chan = 1;
+    #endif
     #ifdef VSPI_HOST
     } else if (self->host == VSPI_HOST) {
         dma_chan = 2;
@@ -346,7 +360,9 @@ STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
 
             if (offset > 0) {
                 // wait for previously queued transaction
+                MP_THREAD_GIL_EXIT();
                 spi_device_get_trans_result(self->spi, &result, portMAX_DELAY);
+                MP_THREAD_GIL_ENTER();
             }
 
             // doesn't need ceil(); loop ends when bits_remaining is 0
@@ -354,7 +370,9 @@ STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
         }
 
         // wait for last transaction
+        MP_THREAD_GIL_EXIT();
         spi_device_get_trans_result(self->spi, &result, portMAX_DELAY);
+        MP_THREAD_GIL_ENTER();
         spi_device_release_bus(self->spi);
     }
 }

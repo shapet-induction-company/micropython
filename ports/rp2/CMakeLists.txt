@@ -66,6 +66,7 @@ set(MICROPY_SOURCE_LIB
     ${MICROPY_DIR}/lib/littlefs/lfs2_util.c
     ${MICROPY_DIR}/lib/oofatfs/ff.c
     ${MICROPY_DIR}/lib/oofatfs/ffunicode.c
+    ${MICROPY_DIR}/shared/netutils/netutils.c
     ${MICROPY_DIR}/shared/readline/readline.c
     ${MICROPY_DIR}/shared/runtime/gchelper_m0.s
     ${MICROPY_DIR}/shared/runtime/gchelper_native.c
@@ -83,9 +84,10 @@ set(MICROPY_SOURCE_DRIVERS
 set(MICROPY_SOURCE_PORT
     fatfs_port.c
     machine_adc.c
+    machine_bitstream.c
     machine_i2c.c
+    machine_i2s.c
     machine_pin.c
-    machine_pwm.c
     machine_rtc.c
     machine_spi.c
     machine_timer.c
@@ -112,8 +114,8 @@ set(MICROPY_SOURCE_QSTR
     ${MICROPY_DIR}/shared/runtime/sys_stdio_mphal.c
     ${PROJECT_SOURCE_DIR}/machine_adc.c
     ${PROJECT_SOURCE_DIR}/machine_i2c.c
+    ${PROJECT_SOURCE_DIR}/machine_i2s.c
     ${PROJECT_SOURCE_DIR}/machine_pin.c
-    ${PROJECT_SOURCE_DIR}/machine_pwm.c
     ${PROJECT_SOURCE_DIR}/machine_rtc.c
     ${PROJECT_SOURCE_DIR}/machine_spi.c
     ${PROJECT_SOURCE_DIR}/machine_timer.c
@@ -160,6 +162,58 @@ set(PICO_SDK_COMPONENTS
     tinyusb_common
     tinyusb_device
 )
+
+if(MICROPY_PY_BLUETOOTH)
+    list(APPEND MICROPY_SOURCE_PORT mpbthciport.c)
+    target_compile_definitions(${MICROPY_TARGET} PRIVATE
+        MICROPY_PY_BLUETOOTH=1
+        MICROPY_PY_BLUETOOTH_USE_SYNC_EVENTS=1
+        MICROPY_PY_BLUETOOTH_ENABLE_CENTRAL_MODE=1
+        MICROPY_PY_BLUETOOTH_ENABLE_PAIRING_BONDING=1
+        MICROPY_PY_BLUETOOTH_ENABLE_L2CAP_CHANNELS=1
+    )
+endif()
+
+if(MICROPY_BLUETOOTH_NIMBLE)
+    list(APPEND MICROPY_SOURCE_PORT mpnimbleport.c)
+    target_compile_definitions(${MICROPY_TARGET} PRIVATE
+        MICROPY_BLUETOOTH_NIMBLE=1
+        MICROPY_BLUETOOTH_NIMBLE_BINDINGS_ONLY=0
+    )
+    target_compile_options(${MICROPY_TARGET} PRIVATE
+    # TODO: This flag is currently needed to make nimble build.
+    -Wno-unused-but-set-variable
+    )
+    include(${MICROPY_DIR}/extmod/nimble/nimble.cmake)
+    target_link_libraries(${MICROPY_TARGET} micropy_extmod_nimble)
+    get_target_property(NIMBLE_INCLUDE micropy_extmod_nimble INTERFACE_INCLUDE_DIRECTORIES)
+    list(APPEND MICROPY_INC_CORE ${NIMBLE_INCLUDE})
+endif()
+
+if (MICROPY_PY_NETWORK_NINAW10)
+    target_compile_definitions(${MICROPY_TARGET} PRIVATE
+        MICROPY_PY_NETWORK_NINAW10=1
+    )
+
+    target_include_directories(${MICROPY_TARGET} PRIVATE
+        ${MICROPY_DIR}/drivers/ninaw10/
+    )
+
+    # Enable NINA-W10 WiFi and Bluetooth drivers.
+    list(APPEND MICROPY_SOURCE_DRIVERS
+        ${MICROPY_DIR}/drivers/ninaw10/nina_bt_hci.c
+        ${MICROPY_DIR}/drivers/ninaw10/nina_wifi_drv.c
+        ${MICROPY_DIR}/drivers/ninaw10/nina_wifi_bsp.c
+    )
+
+    list(APPEND MICROPY_SOURCE_EXTMOD
+        ${MICROPY_DIR}/extmod/network_ninaw10.c
+    )
+
+    list(APPEND MICROPY_SOURCE_QSTR
+        ${MICROPY_DIR}/extmod/network_ninaw10.c
+    )
+endif()
 
 # Define mpy-cross flags and frozen manifest
 set(MICROPY_CROSS_FLAGS -march=armv7m)
@@ -221,6 +275,13 @@ target_compile_definitions(${MICROPY_TARGET} PRIVATE
 target_link_libraries(${MICROPY_TARGET}
     ${PICO_SDK_COMPONENTS}
 )
+
+if (MICROPY_HW_ENABLE_DOUBLE_TAP)
+# Enable double tap reset into bootrom.
+target_link_libraries(${MICROPY_TARGET}
+    pico_bootsel_via_double_reset
+)
+endif()
 
 # todo this is a bit brittle, but we want to move a few source files into RAM (which requires
 #  a linker script modification) until we explicitly add  macro calls around the function

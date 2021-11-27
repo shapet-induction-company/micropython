@@ -49,6 +49,12 @@
 #define GPIO_PULL_UP   (2)
 #define GPIO_PULL_HOLD (4)
 
+#if CONFIG_IDF_TARGET_ESP32
+#define GPIO_FIRST_NON_OUTPUT (34)
+#elif CONFIG_IDF_TARGET_ESP32S2
+#define GPIO_FIRST_NON_OUTPUT (46)
+#endif
+
 typedef struct _machine_pin_obj_t {
     mp_obj_base_t base;
     gpio_num_t id;
@@ -78,8 +84,13 @@ STATIC const machine_pin_obj_t machine_pin_obj[] = {
     {{&machine_pin_type}, GPIO_NUM_13},
     {{&machine_pin_type}, GPIO_NUM_14},
     {{&machine_pin_type}, GPIO_NUM_15},
+    #if CONFIG_ESP32_SPIRAM_SUPPORT
+    {{NULL}, -1},
+    {{NULL}, -1},
+    #else
     {{&machine_pin_type}, GPIO_NUM_16},
     {{&machine_pin_type}, GPIO_NUM_17},
+    #endif
     {{&machine_pin_type}, GPIO_NUM_18},
     {{&machine_pin_type}, GPIO_NUM_19},
     {{NULL}, -1},
@@ -119,12 +130,17 @@ STATIC const machine_pin_obj_t machine_pin_obj[] = {
     {{&machine_pin_type}, GPIO_NUM_11},
     {{&machine_pin_type}, GPIO_NUM_12},
     {{&machine_pin_type}, GPIO_NUM_13},
-    {{&machine_pin_type}, GPIO_NUM_14},
-    {{&machine_pin_type}, GPIO_NUM_15},
-    {{&machine_pin_type}, GPIO_NUM_16},
-    {{&machine_pin_type}, GPIO_NUM_17},
+    {{NULL}, -1}, // 14 FLASH
+    {{NULL}, -1}, // 15 FLASH
+    {{NULL}, -1}, // 16 FLASH
+    {{NULL}, -1}, // 17 FLASH
+    #if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    {{NULL}, -1}, // 18 is for native USB D-
+    {{NULL}, -1}, // 19 is for native USB D+
+    #else
     {{&machine_pin_type}, GPIO_NUM_18},
     {{&machine_pin_type}, GPIO_NUM_19},
+    #endif
     {{&machine_pin_type}, GPIO_NUM_20},
     {{&machine_pin_type}, GPIO_NUM_21},
 
@@ -182,6 +198,13 @@ STATIC const machine_pin_obj_t machine_pin_obj[] = {
     {{&machine_pin_type}, GPIO_NUM_44}, // U0RXD
     {{&machine_pin_type}, GPIO_NUM_45},
     {{&machine_pin_type}, GPIO_NUM_46},
+
+    #endif
+
+    #if CONFIG_IDF_TARGET_ESP32S3 && MICROPY_HW_ESP32S3_EXTENDED_IO
+
+    {{&machine_pin_type}, GPIO_NUM_47},
+    {{&machine_pin_type}, GPIO_NUM_48},
 
     #endif
 };
@@ -265,11 +288,12 @@ STATIC mp_obj_t machine_pin_obj_init_helper(const machine_pin_obj_t *self, size_
     // configure mode
     if (args[ARG_mode].u_obj != mp_const_none) {
         mp_int_t pin_io_mode = mp_obj_get_int(args[ARG_mode].u_obj);
-        if (self->id >= 34 && (pin_io_mode & GPIO_MODE_DEF_OUTPUT)) {
+        #ifdef GPIO_FIRST_NON_OUTPUT
+        if (self->id >= GPIO_FIRST_NON_OUTPUT && (pin_io_mode & GPIO_MODE_DEF_OUTPUT)) {
             mp_raise_ValueError(MP_ERROR_TEXT("pin can only be input"));
-        } else {
-            gpio_set_direction(self->id, pin_io_mode);
         }
+        #endif
+        gpio_set_direction(self->id, pin_io_mode);
     }
 
     // configure pull
@@ -506,8 +530,13 @@ STATIC const machine_pin_irq_obj_t machine_pin_irq_object[] = {
     {{&machine_pin_irq_type}, GPIO_NUM_13},
     {{&machine_pin_irq_type}, GPIO_NUM_14},
     {{&machine_pin_irq_type}, GPIO_NUM_15},
+    #if CONFIG_ESP32_SPIRAM_SUPPORT
+    {{NULL}, -1},
+    {{NULL}, -1},
+    #else
     {{&machine_pin_irq_type}, GPIO_NUM_16},
     {{&machine_pin_irq_type}, GPIO_NUM_17},
+    #endif
     {{&machine_pin_irq_type}, GPIO_NUM_18},
     {{&machine_pin_irq_type}, GPIO_NUM_19},
     {{NULL}, -1},
@@ -609,6 +638,14 @@ STATIC const machine_pin_irq_obj_t machine_pin_irq_object[] = {
     {{&machine_pin_irq_type}, GPIO_NUM_43},
     {{&machine_pin_irq_type}, GPIO_NUM_44},
     {{&machine_pin_irq_type}, GPIO_NUM_45},
+    {{&machine_pin_irq_type}, GPIO_NUM_46},
+
+    #endif
+
+    #if CONFIG_IDF_TARGET_ESP32S3 && MICROPY_HW_ESP32S3_EXTENDED_IO
+
+    {{&machine_pin_irq_type}, GPIO_NUM_47},
+    {{&machine_pin_irq_type}, GPIO_NUM_48},
 
     #endif
 };
